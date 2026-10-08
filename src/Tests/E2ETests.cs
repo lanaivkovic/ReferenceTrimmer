@@ -226,12 +226,12 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public async Task DisableTransitiveProjectReferencesRuntimeDependency()
+    public async Task DisableTransitiveProjectReferencesCompileTimeDependency()
     {
-        // Library calls Provider, whose private implementation needs Dependency at run time. Library's
-        // source never touches Dependency, so symbol analysis alone considers the direct reference unused.
-        // With transitive project references enabled, MSBuild flows Dependency to the output, so the
-        // direct reference really is removable.
+        // Provider exposes an inapplicable extension-method candidate whose signature references Dependency.
+        // The compiler still needs Dependency's metadata to reject that candidate during overload resolution.
+        // With transitive project references enabled, MSBuild supplies Dependency through Provider, so the
+        // direct Library-to-Dependency reference is removable.
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
@@ -244,8 +244,8 @@ public sealed class E2ETests
                 { "DisableTransitiveProjectReferences", "false" },
             });
 
-        // With transitive project references disabled, nothing else delivers Dependency to the output,
-        // so the reference must be kept because Provider's assembly metadata references it.
+        // With transitive project references disabled, Library needs its direct Dependency reference so the
+        // compiler can resolve the rejected candidate's complete signature.
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
