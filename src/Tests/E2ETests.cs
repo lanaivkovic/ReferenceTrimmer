@@ -226,6 +226,37 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public async Task DisableTransitiveProjectReferencesRuntimeDependency()
+    {
+        // Library calls Provider, whose private implementation needs Dependency at run time. Library's
+        // source never touches Dependency, so symbol analysis alone considers the direct reference unused.
+        // With transitive project references enabled, MSBuild flows Dependency to the output, so the
+        // direct reference really is removable.
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
+            },
+            useSymbolAnalysis: true,
+            globalProperties: new Dictionary<string, string>
+            {
+                { "DisableTransitiveProjectReferences", "false" },
+            });
+
+        // With transitive project references disabled, nothing else delivers Dependency to the output,
+        // so the reference must be kept because Provider's assembly metadata references it.
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: true,
+            globalProperties: new Dictionary<string, string>
+            {
+                { "DisableTransitiveProjectReferences", "true" },
+            });
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task UsedReferenceHintPath(bool useSymbolAnalysis)
